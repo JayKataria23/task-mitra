@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -33,13 +26,15 @@ import {
 import {
   CheckCircle2,
   Circle,
-  ClipboardList,
   Clock,
   Trash2,
   ChevronDown,
   ChevronUp,
+  LogOut,
+  Plus,
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { supabase } from "./utils/supabase";
 
 function getInitials(name) {
   return name
@@ -74,7 +69,7 @@ function AssigneeInitials({ name }) {
       <Tooltip>
         <TooltipTrigger>
           <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full ${bgColor} text-white text-xs font-medium flex-shrink-0`}
+            className={`flex h-11 w-11 items-center justify-center rounded-full ${bgColor} text-white text-s font-medium flex-shrink-0`}
             aria-label={`Assigned to ${name}`}
           >
             {initials}
@@ -96,7 +91,6 @@ export default function Component() {
       assignee: "John Doe",
       dueDate: "2023-06-15",
       status: "Upcoming",
-      progress: 75,
     },
     {
       id: "2",
@@ -104,7 +98,6 @@ export default function Component() {
       assignee: "Jane Smith",
       dueDate: "2023-06-20",
       status: "Todo",
-      progress: 0,
     },
     {
       id: "3",
@@ -112,7 +105,6 @@ export default function Component() {
       assignee: "Michael Johnson",
       dueDate: "2023-06-30",
       status: "Completed",
-      progress: 100,
     },
     {
       id: "4",
@@ -120,7 +112,6 @@ export default function Component() {
       assignee: "Sarah Lee",
       dueDate: "2023-07-05",
       status: "Upcoming",
-      progress: 30,
     },
     {
       id: "5",
@@ -128,7 +119,6 @@ export default function Component() {
       assignee: "David Kim",
       dueDate: "2023-07-10",
       status: "Todo",
-      progress: 0,
     },
     {
       id: "6",
@@ -136,7 +126,6 @@ export default function Component() {
       assignee: "Emily Chen",
       dueDate: "2023-07-15",
       status: "Completed",
-      progress: 100,
     },
   ]);
 
@@ -147,8 +136,9 @@ export default function Component() {
     assignee: "",
     dueDate: "",
     status: "Upcoming",
-    progress: 0,
   });
+
+  const [userName, setUserName] = useState("");
 
   const handleAddTask = () => {
     if (newTask.title && newTask.assignee && newTask.dueDate) {
@@ -161,7 +151,6 @@ export default function Component() {
         assignee: "",
         dueDate: "",
         status: "Upcoming",
-        progress: 0,
       });
     }
   };
@@ -200,28 +189,34 @@ export default function Component() {
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-8">
-        <div className="mx-auto max-w-7xl">
-          <header className="mb-8 flex items-center justify-between">
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200">
+        <nav className="bg-white shadow-md p-4">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
             <div className="flex items-center space-x-4">
               <img
                 src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/NxtGen-removebg-preview-JejyrxNu6gHCt8e58FgIUZQw6oabIp.png"
                 alt="NxtGen Logo"
-                className="h-10"
+                className="h-11"
               />
-              <h1 className="text-3xl font-bold text-gray-800">
-                IT Solutions Dashboard
-              </h1>
+              <h1 className="text-xl font-bold text-gray-800">Task Mitra</h1>
             </div>
-            <Button
-              className="bg-[#4CAF50] hover:bg-[#45a049] text-white"
-              onClick={() => setIsModalOpen(true)}
-            >
-              <ClipboardList className="mr-2 h-4 w-4" />
-              Add New Task
-            </Button>
-          </header>
-          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-600 hidden sm:inline">
+                Welcome, {userName}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => supabase.auth.signOut()}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
+          </div>
+        </nav>
+        <div className="mx-auto max-w-7xl">
+          <div className="grid pt-4 gap-8 md:grid-cols-2 lg:grid-cols-3">
             <TaskColumn
               title="Upcoming"
               icon={<Clock className="h-6 w-6 text-blue-500" />}
@@ -248,6 +243,12 @@ export default function Component() {
             />
           </div>
         </div>
+        <Button
+          className="fixed bottom-12 right-12 bg-[#4CAF50] hover:bg-[#45a049] text-white p-6 rounded shadow-lg"
+          onClick={() => setIsModalOpen(true)}
+        >
+          <Plus className="h-12 w-12" />
+        </Button>
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent>
             <DialogHeader>
@@ -363,10 +364,10 @@ function TaskColumn({
                     snapshot.isDragging ? "shadow-lg" : ""
                   }`}
                 >
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
                       <AssigneeInitials name={task.assignee} />
-                      <CardTitle className="text-sm font-medium truncate">
+                      <CardTitle className="text-md font-medium truncate">
                         {task.title}
                       </CardTitle>
                     </div>
@@ -386,17 +387,6 @@ function TaskColumn({
                   </CardHeader>
                   {expandedTasks[task.id] && (
                     <>
-                      <CardContent>
-                        <div className="mt-2 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">Progress</p>
-                            <p className="text-sm font-medium">
-                              {task.progress}%
-                            </p>
-                          </div>
-                          <Progress value={task.progress} className="w-full" />
-                        </div>
-                      </CardContent>
                       <CardFooter className="flex items-center justify-between">
                         <p className="text-xs text-gray-500">
                           Due: {task.dueDate}

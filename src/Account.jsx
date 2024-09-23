@@ -183,6 +183,7 @@ export default function Component({ session }) {
             description: newTask.description,
             due_date: newTask.dueDate,
             status: newTask.status,
+            created_by: userName,
           },
         ])
         .select();

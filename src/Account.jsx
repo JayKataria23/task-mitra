@@ -42,6 +42,7 @@ import {
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { supabase } from "./utils/supabase";
 import PropTypes from "prop-types";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 function getInitials(name) {
   return name
@@ -68,22 +69,22 @@ function getColorFromInitials(initials) {
 }
 
 function AssigneeInitials({ name }) {
-  const initials = getInitials(name);
-  const bgColor = getColorFromInitials(initials);
+  const initials = name ? getInitials(name) : "UN";
+  const bgColor = name ? getColorFromInitials(initials) : "bg-gray-400";
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger>
           <div
-            className={`flex h-11 w-11 items-center justify-center rounded-full ${bgColor} text-white text-s font-medium flex-shrink-0`}
-            aria-label={`Assigned to ${name}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-full ${bgColor} text-white text-xs font-medium flex-shrink-0`}
+            aria-label={`Assigned to ${name || "Unassigned"}`}
           >
             {initials}
           </div>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Assigned to: {name}</p>
+          <p>Assigned to: {name || "Unassigned"}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -103,6 +104,7 @@ export default function Component({ session }) {
     description: "",
     dueDate: "",
     status: "Upcoming",
+    assignees: [],
   });
   const [userName, setUserName] = useState("");
   const [showNameModal, setShowNameModal] = useState(false);
@@ -117,19 +119,12 @@ export default function Component({ session }) {
   }, [session]);
 
   const fetchTasks = async () => {
-    const { data, error } = await supabase
-      .from("tasks")
-      .select(
-        `
-        *,
-        task_assignments(user_id)
-      `
-      )
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.rpc("fetch_tasks_with_assignees");
 
     if (error) {
       console.error("Error fetching tasks:", error);
     } else {
+      console.log(data);
       setTasks(data);
     }
   };
@@ -197,9 +192,13 @@ export default function Component({ session }) {
       if (error) {
         console.error("Error adding task:", error);
       } else {
-        await supabase
-          .from("task_assignments")
-          .insert([{ task_id: data[0].id, user_id: session.user.id }]);
+        // Insert task assignments for all selected assignees
+        const assignments = newTask.assignees.map((assigneeId) => ({
+          task_id: data[0].id,
+          user_id: assigneeId,
+        }));
+
+        await supabase.from("task_assignments").insert(assignments);
 
         setIsModalOpen(false);
         setNewTask({
@@ -207,6 +206,7 @@ export default function Component({ session }) {
           description: "",
           dueDate: "",
           status: "Upcoming",
+          assignees: [],
         });
         fetchTasks();
       }
@@ -383,6 +383,23 @@ export default function Component({ session }) {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="assignees" className="text-right">
+                  Assignees
+                </Label>
+                <div className="col-span-3">
+                  <MultiSelect
+                    options={allUsers.map((user) => ({
+                      value: user.id,
+                      label: user.name,
+                    }))}
+                    onValueChange={(selectedValues) =>
+                      setNewTask({ ...newTask, assignees: selectedValues })
+                    }
+                    placeholder="Select assignees"
+                  />
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button
@@ -480,9 +497,14 @@ function TaskColumn({
                   {expandedTasks[task.id] && (
                     <>
                       <CardContent>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-600 mb-2">
                           {task.description}
                         </p>
+                        <div className="flex flex-wrap gap-2">
+                          <p className="text-sm text-gray-600 mb-2">
+                            Assignees: {task.assignees.join(", ")}
+                          </p>
+                        </div>
                       </CardContent>
                       <CardFooter className="flex items-center justify-between">
                         <p className="text-xs text-gray-500">

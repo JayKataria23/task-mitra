@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -35,6 +41,7 @@ import {
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { supabase } from "./utils/supabase";
+import PropTypes from "prop-types";
 
 function getInitials(name) {
   return name
@@ -83,89 +90,108 @@ function AssigneeInitials({ name }) {
   );
 }
 
-export default function Component() {
-  const [tasks, setTasks] = useState([
-    {
-      id: "1",
-      title: "Implement new security protocols",
-      assignee: "John Doe",
-      dueDate: "2023-06-15",
-      status: "Upcoming",
-    },
-    {
-      id: "2",
-      title: "Migrate database to new server",
-      assignee: "Jane Smith",
-      dueDate: "2023-06-20",
-      status: "Todo",
-    },
-    {
-      id: "3",
-      title: "Optimize website performance",
-      assignee: "Michael Johnson",
-      dueDate: "2023-06-30",
-      status: "Completed",
-    },
-    {
-      id: "4",
-      title: "Develop mobile app prototype",
-      assignee: "Sarah Lee",
-      dueDate: "2023-07-05",
-      status: "Upcoming",
-    },
-    {
-      id: "5",
-      title: "Implement new CRM system",
-      assignee: "David Kim",
-      dueDate: "2023-07-10",
-      status: "Todo",
-    },
-    {
-      id: "6",
-      title: "Upgrade network infrastructure",
-      assignee: "Emily Chen",
-      dueDate: "2023-07-15",
-      status: "Completed",
-    },
-  ]);
+AssigneeInitials.propTypes = {
+  name: PropTypes.string.isRequired,
+};
 
+export default function Component({ session }) {
+  const [tasks, setTasks] = useState([]);
   const [expandedTasks, setExpandedTasks] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTask, setNewTask] = useState({
     title: "",
-    assignee: "",
+    description: "",
     dueDate: "",
     status: "Upcoming",
   });
-
   const [userName, setUserName] = useState("");
 
-  const handleAddTask = () => {
-    if (newTask.title && newTask.assignee && newTask.dueDate) {
-      const newTaskId = (tasks.length + 1).toString();
-      setTasks([...tasks, { ...newTask, id: newTaskId }]);
-      setExpandedTasks({ ...expandedTasks, [newTaskId]: true });
-      setIsModalOpen(false);
-      setNewTask({
-        title: "",
-        assignee: "",
-        dueDate: "",
-        status: "Upcoming",
-      });
+  useEffect(() => {
+    fetchTasks();
+    fetchUserName();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  const fetchTasks = async () => {
+    const { data, error } = await supabase
+      .from("tasks")
+      .select(
+        `
+        *,
+        task_assignments(user_id)
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching tasks:", error);
+    } else {
+      setTasks(data);
     }
   };
 
-  const handleDeleteTask = (id) => {
-    setTasks(tasks.filter((task) => task.id !== id));
-    const { [id]: _, ...newExpandedTasks } = expandedTasks;
-    setExpandedTasks(newExpandedTasks);
+  const fetchUserName = async () => {
+    const { data, error } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", session.user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching user name:", error);
+    } else {
+      setUserName(data.email);
+    }
+  };
+
+  const handleAddTask = async () => {
+    if (newTask.title && newTask.dueDate) {
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert([
+          {
+            title: newTask.title,
+            description: newTask.description,
+            due_date: newTask.dueDate,
+            status: newTask.status,
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.error("Error adding task:", error);
+      } else {
+        await supabase
+          .from("task_assignments")
+          .insert([{ task_id: data[0].id, user_id: session.user.id }]);
+
+        setIsModalOpen(false);
+        setNewTask({
+          title: "",
+          description: "",
+          dueDate: "",
+          status: "Upcoming",
+        });
+        fetchTasks();
+      }
+    }
+  };
+
+  const handleDeleteTask = async (id) => {
+    const { error } = await supabase.from("tasks").delete().eq("id", id);
+
+    if (error) {
+      console.error("Error deleting task:", error);
+    } else {
+      fetchTasks();
+    }
   };
 
   const toggleTaskExpansion = (id) => {
     setExpandedTasks((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const onDragEnd = (result) => {
+  const onDragEnd = async (result) => {
     const { destination, source, draggableId } = result;
 
     if (!destination) {
@@ -179,12 +205,18 @@ export default function Component() {
       return;
     }
 
-    const newTasks = Array.from(tasks);
-    const [reorderedItem] = newTasks.splice(source.index, 1);
-    reorderedItem.status = destination.droppableId;
-    newTasks.splice(destination.index, 0, reorderedItem);
+    const newStatus = destination.droppableId;
 
-    setTasks(newTasks);
+    const { error } = await supabase
+      .from("tasks")
+      .update({ status: newStatus })
+      .eq("id", draggableId);
+
+    if (error) {
+      console.error("Error updating task status:", error);
+    } else {
+      fetchTasks();
+    }
   };
 
   return (
@@ -269,14 +301,14 @@ export default function Component() {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="assignee" className="text-right">
-                  Assignee
+                <Label htmlFor="description" className="text-right">
+                  Description
                 </Label>
                 <Input
-                  id="assignee"
-                  value={newTask.assignee}
+                  id="description"
+                  value={newTask.description}
                   onChange={(e) =>
-                    setNewTask({ ...newTask, assignee: e.target.value })
+                    setNewTask({ ...newTask, description: e.target.value })
                   }
                   className="col-span-3"
                 />
@@ -354,7 +386,11 @@ function TaskColumn({
             <h2 className="text-xl font-semibold text-gray-700">{title}</h2>
           </div>
           {tasks.map((task, index) => (
-            <Draggable key={task.id} draggableId={task.id} index={index}>
+            <Draggable
+              key={task.id}
+              draggableId={task.id.toString()}
+              index={index}
+            >
               {(provided, snapshot) => (
                 <Card
                   ref={provided.innerRef}
@@ -366,7 +402,9 @@ function TaskColumn({
                 >
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
-                      <AssigneeInitials name={task.assignee} />
+                      <AssigneeInitials
+                        name={task.task_assignments[0]?.user_id || "Unassigned"}
+                      />
                       <CardTitle className="text-md font-medium truncate">
                         {task.title}
                       </CardTitle>
@@ -387,9 +425,14 @@ function TaskColumn({
                   </CardHeader>
                   {expandedTasks[task.id] && (
                     <>
+                      <CardContent>
+                        <p className="text-sm text-gray-600">
+                          {task.description}
+                        </p>
+                      </CardContent>
                       <CardFooter className="flex items-center justify-between">
                         <p className="text-xs text-gray-500">
-                          Due: {task.dueDate}
+                          Due: {new Date(task.due_date).toLocaleDateString()}
                         </p>
                         <Button
                           variant="ghost"
@@ -411,3 +454,16 @@ function TaskColumn({
     </Droppable>
   );
 }
+
+TaskColumn.propTypes = {
+  title: PropTypes.string.isRequired,
+  icon: PropTypes.string.isRequired,
+  tasks: PropTypes.array.isRequired,
+  onDeleteTask: PropTypes.func.isRequired,
+  expandedTasks: PropTypes.object.isRequired,
+  toggleTaskExpansion: PropTypes.func.isRequired,
+};
+
+Component.propTypes = {
+  session: PropTypes.object.isRequired,
+};

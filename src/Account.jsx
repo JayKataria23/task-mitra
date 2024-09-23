@@ -473,7 +473,7 @@ function TaskColumn({
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
                       <AssigneeInitials
-                        name={task.assignees[0]?.name || "Unassigned"}
+                        name={task.created_by || "Unassigned"}
                       />
                       <CardTitle className="text-md font-medium truncate">
                         {task.title}

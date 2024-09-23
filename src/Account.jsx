@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -105,10 +105,12 @@ export default function Component({ session }) {
     status: "Upcoming",
   });
   const [userName, setUserName] = useState("");
+  const [showNameModal, setShowNameModal] = useState(false);
+  const nameInputRef = useRef(null);
 
   useEffect(() => {
     fetchTasks();
-    fetchUserName();
+    fetchUserProfile();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -130,17 +132,36 @@ export default function Component({ session }) {
     }
   };
 
-  const fetchUserName = async () => {
+  const fetchUserProfile = async () => {
     const { data, error } = await supabase
-      .from("users")
-      .select("email")
+      .from("user_profiles")
+      .select("name")
       .eq("id", session.user.id)
       .single();
 
     if (error) {
-      console.error("Error fetching user name:", error);
+      console.error("Error fetching user profile:", error);
+      setShowNameModal(true);
+    } else if (!data || !data.name) {
+      setShowNameModal(true);
     } else {
-      setUserName(data.email);
+      setUserName(data.name);
+    }
+  };
+
+  const handleSaveName = async () => {
+    const name = nameInputRef.current.value.trim();
+    if (name) {
+      const { error } = await supabase
+        .from("user_profiles")
+        .upsert({ id: session.user.id, name }, { onConflict: "id" });
+
+      if (error) {
+        console.error("Error saving user name:", error);
+      } else {
+        setUserName(name);
+        setShowNameModal(false);
+      }
     }
   };
 
@@ -355,6 +376,28 @@ export default function Component({ session }) {
               >
                 Add Task
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showNameModal} onOpenChange={setShowNameModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Welcome! Please enter your full name</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">
+                  Full Name
+                </Label>
+                <Input
+                  id="name"
+                  ref={nameInputRef}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveName}>Save</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

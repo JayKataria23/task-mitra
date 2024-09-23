@@ -107,11 +107,13 @@ export default function Component({ session }) {
   const [userName, setUserName] = useState("");
   const [showNameModal, setShowNameModal] = useState(false);
   const nameInputRef = useRef(null);
+  const [allUsers, setAllUsers] = useState([]);
 
   useEffect(() => {
     fetchTasks();
     fetchUserProfile();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchAllUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   const fetchTasks = async () => {
@@ -129,6 +131,19 @@ export default function Component({ session }) {
       console.error("Error fetching tasks:", error);
     } else {
       setTasks(data);
+    }
+  };
+
+  const fetchAllUsers = async () => {
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .select("id, name");
+
+    if (error) {
+      console.error("Error fetching users:", error);
+    } else {
+      setAllUsers(data);
+      console.log(allUsers);
     }
   };
 
@@ -389,11 +404,7 @@ export default function Component({ session }) {
                 <Label htmlFor="name" className="text-right">
                   Full Name
                 </Label>
-                <Input
-                  id="name"
-                  ref={nameInputRef}
-                  className="col-span-3"
-                />
+                <Input id="name" ref={nameInputRef} className="col-span-3" />
               </div>
             </div>
             <DialogFooter>

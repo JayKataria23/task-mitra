@@ -124,7 +124,6 @@ export default function Component({ session }) {
     if (error) {
       console.error("Error fetching tasks:", error);
     } else {
-      console.log(data);
       setTasks(data);
     }
   };
@@ -138,7 +137,6 @@ export default function Component({ session }) {
       console.error("Error fetching users:", error);
     } else {
       setAllUsers(data);
-      console.log(allUsers);
     }
   };
 
@@ -474,7 +472,7 @@ function TaskColumn({
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
                       <AssigneeInitials
-                        name={task.created_by || "Unassigned"}
+                        name={task.assignees[0]?.name || "Unassigned"}
                       />
                       <CardTitle className="text-md font-medium truncate">
                         {task.title}
@@ -533,7 +531,7 @@ function TaskColumn({
 
 TaskColumn.propTypes = {
   title: PropTypes.string.isRequired,
-  icon: PropTypes.string.isRequired,
+  icon: PropTypes.element.isRequired,
   tasks: PropTypes.array.isRequired,
   onDeleteTask: PropTypes.func.isRequired,
   expandedTasks: PropTypes.object.isRequired,

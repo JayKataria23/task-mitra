@@ -38,6 +38,7 @@ import {
   ChevronUp,
   LogOut,
   Plus,
+  Edit2,
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { supabase } from "./utils/supabase";
@@ -110,6 +111,8 @@ export default function Component({ session }) {
   const [showNameModal, setShowNameModal] = useState(false);
   const nameInputRef = useRef(null);
   const [allUsers, setAllUsers] = useState([]);
+  const [editingTask, setEditingTask] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -254,6 +257,41 @@ export default function Component({ session }) {
     }
   };
 
+  const handleEditTask = async () => {
+    if (editingTask) {
+      const { error } = await supabase
+        .from("tasks")
+        .update({
+          title: editingTask.title,
+          description: editingTask.description,
+          due_date: editingTask.dueDate,
+          status: editingTask.status,
+        })
+        .eq("id", editingTask.id);
+
+      if (error) {
+        console.error("Error updating task:", error);
+      } else {
+        // Update assignees
+        await supabase
+          .from("task_assignments")
+          .delete()
+          .eq("task_id", editingTask.id);
+
+        const assignments = editingTask.assignees.map((assigneeId) => ({
+          task_id: editingTask.id,
+          user_id: assigneeId,
+        }));
+
+        await supabase.from("task_assignments").insert(assignments);
+
+        setIsEditModalOpen(false);
+        setEditingTask(null);
+        fetchTasks();
+      }
+    }
+  };
+
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200">
@@ -289,6 +327,10 @@ export default function Component({ session }) {
               icon={<Clock className="h-6 w-6 text-blue-500" />}
               tasks={tasks.filter((task) => task.status === "Upcoming")}
               onDeleteTask={handleDeleteTask}
+              onEditTask={(task) => {
+                setEditingTask(task);
+                setIsEditModalOpen(true);
+              }}
               expandedTasks={expandedTasks}
               toggleTaskExpansion={toggleTaskExpansion}
             />
@@ -297,6 +339,10 @@ export default function Component({ session }) {
               icon={<Circle className="h-6 w-6 text-yellow-500" />}
               tasks={tasks.filter((task) => task.status === "Todo")}
               onDeleteTask={handleDeleteTask}
+              onEditTask={(task) => {
+                setEditingTask(task);
+                setIsEditModalOpen(true);
+              }}
               expandedTasks={expandedTasks}
               toggleTaskExpansion={toggleTaskExpansion}
             />
@@ -305,6 +351,10 @@ export default function Component({ session }) {
               icon={<CheckCircle2 className="h-6 w-6 text-green-500" />}
               tasks={tasks.filter((task) => task.status === "Completed")}
               onDeleteTask={handleDeleteTask}
+              onEditTask={(task) => {
+                setEditingTask(task);
+                setIsEditModalOpen(true);
+              }}
               expandedTasks={expandedTasks}
               toggleTaskExpansion={toggleTaskExpansion}
             />
@@ -428,6 +478,97 @@ export default function Component({ session }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {/* Edit Task Modal */}
+        <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Task</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-title" className="text-right">
+                  Title
+                </Label>
+                <Input
+                  id="edit-title"
+                  value={editingTask?.title || ""}
+                  onChange={(e) =>
+                    setEditingTask({ ...editingTask, title: e.target.value })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-description" className="text-right">
+                  Description
+                </Label>
+                <Input
+                  id="edit-description"
+                  value={editingTask?.description || ""}
+                  onChange={(e) =>
+                    setEditingTask({ ...editingTask, description: e.target.value })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-dueDate" className="text-right">
+                  Due Date
+                </Label>
+                <Input
+                  id="edit-dueDate"
+                  type="date"
+                  value={editingTask?.dueDate || ""}
+                  onChange={(e) =>
+                    setEditingTask({ ...editingTask, dueDate: e.target.value })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-status" className="text-right">
+                  Status
+                </Label>
+                <Select
+                  value={editingTask?.status || ""}
+                  onValueChange={(value) =>
+                    setEditingTask({ ...editingTask, status: value })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select a status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Upcoming">Upcoming</SelectItem>
+                    <SelectItem value="Todo">Todo</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-assignees" className="text-right">
+                  Assignees
+                </Label>
+                <div className="col-span-3">
+                  <MultiSelect
+                    options={allUsers.map((user) => ({
+                      value: user.id,
+                      label: user.name,
+                    }))}
+                    value={editingTask?.assignees || []}
+                    onValueChange={(selectedValues) =>
+                      setEditingTask({ ...editingTask, assignees: selectedValues })
+                    }
+                    placeholder="Select assignees"
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleEditTask}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DragDropContext>
   );
@@ -438,6 +579,7 @@ function TaskColumn({
   icon,
   tasks,
   onDeleteTask,
+  onEditTask,
   expandedTasks,
   toggleTaskExpansion,
 }) {
@@ -509,13 +651,22 @@ function TaskColumn({
                         <p className="text-xs text-gray-500">
                           Due: {new Date(task.due_date).toLocaleDateString()}
                         </p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onDeleteTask(task.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-gray-400" />
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEditTask(task)}
+                          >
+                            <Edit2 className="h-4 w-4 text-gray-400" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onDeleteTask(task.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-gray-400" />
+                          </Button>
+                        </div>
                       </CardFooter>
                     </>
                   )}
@@ -535,6 +686,7 @@ TaskColumn.propTypes = {
   icon: PropTypes.element.isRequired,
   tasks: PropTypes.array.isRequired,
   onDeleteTask: PropTypes.func.isRequired,
+  onEditTask: PropTypes.func.isRequired,
   expandedTasks: PropTypes.object.isRequired,
   toggleTaskExpansion: PropTypes.func.isRequired,
 };
